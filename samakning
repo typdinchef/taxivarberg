@@ -1,12 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
+import { supabase } from "./supabaseClient";
 
 export default function SamakningApp() {
   const [drives, setDrives] = useState([]);
-  const [interest, setInterest] = useState({});
   const [newDrive, setNewDrive] = useState({
     name: "",
     location: "",
@@ -15,17 +15,32 @@ export default function SamakningApp() {
     seats: 0,
   });
 
-  const addDrive = () => {
-    setDrives([...drives, { ...newDrive, id: Date.now(), booked: 0 }]);
-    setNewDrive({ name: "", location: "", week: "", time: "", seats: 0 });
+  useEffect(() => {
+    fetchDrives();
+  }, []);
+
+  const fetchDrives = async () => {
+    const { data, error } = await supabase.from("drives").select();
+    if (!error) setDrives(data);
   };
 
-  const bookSeat = (id) => {
-    setDrives(
-      drives.map((d) =>
-        d.id === id && d.booked < d.seats ? { ...d, booked: d.booked + 1 } : d
-      )
-    );
+  const addDrive = async () => {
+    const { data, error } = await supabase.from("drives").insert({
+      ...newDrive,
+      booked: 0,
+    });
+    if (!error) {
+      fetchDrives();
+      setNewDrive({ name: "", location: "", week: "", time: "", seats: 0 });
+    }
+  };
+
+  const bookSeat = async (id, currentBooked) => {
+    const { error } = await supabase
+      .from("drives")
+      .update({ booked: currentBooked + 1 })
+      .eq("id", id);
+    if (!error) fetchDrives();
   };
 
   return (
@@ -76,7 +91,7 @@ export default function SamakningApp() {
             <p><strong>Platser:</strong> {d.booked}/{d.seats}</p>
             <Button
               disabled={d.booked >= d.seats}
-              onClick={() => bookSeat(d.id)}
+              onClick={() => bookSeat(d.id, d.booked)}
               className="mt-2"
             >
               {d.booked >= d.seats ? "Fullbokad" : "Boka plats"}
